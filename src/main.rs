@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 #[derive(Debug, Clone, Copy)]
 enum Register {
     AL,
@@ -41,22 +43,22 @@ const WIDE_REGISTER_DECODE_TABLE: [Register; 8] = [
 ];
 
 impl Register {
-    fn decode_reg(byte: &u8, w: &u8) -> Self {
+    fn decode_reg(byte: u8, w: u8) -> Self {
         let reg_value: u8 = (byte >> 3) & 0b111;
-        Self::decode_value(&reg_value, w)
+        Self::decode_value(reg_value, w)
     }
 
-    fn decode_rm(byte: &u8, w: &u8) -> Self {
+    fn decode_rm(byte: u8, w: u8) -> Self {
         let reg_value: u8 = byte & 0b111;
-        Self::decode_value(&reg_value, w)
+        Self::decode_value(reg_value, w)
     }
 
-    fn decode_value(value: &u8, w: &u8) -> Register {
+    fn decode_value(value: u8, w: u8) -> Register {
         assert!((value >> 3) == 0);
 
         match w {
-            0 => NONWIDE_REGISTER_DECODE_TABLE[*value as usize],
-            1 => WIDE_REGISTER_DECODE_TABLE[*value as usize],
+            0 => NONWIDE_REGISTER_DECODE_TABLE[value as usize],
+            1 => WIDE_REGISTER_DECODE_TABLE[value as usize],
             _ => panic!("Invalid w value"),
         }
     }
@@ -64,44 +66,57 @@ impl Register {
 
 impl std::fmt::Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let enum_name: String = format!("{:?}", self);
+        let enum_name: String = format!("{self:?}");
         write!(f, "{}", enum_name.to_lowercase())
     }
 }
 
-fn get_bit(byte: &u8, position: u8) -> u8 {
+fn get_bit(byte: u8, position: u8) -> u8 {
     (byte >> position) & 1
 }
 
-fn is_basic_mov(byte: &u8) -> bool {
+fn is_basic_mov(byte: u8) -> bool {
     ((byte >> 3) ^ 0b10001) == 0
 }
 
-fn is_register_mode(byte: &u8) -> bool {
+fn is_register_mode(byte: u8) -> bool {
     (byte >> 6) ^ 0b11 == 0
 }
 
 fn main() {
-    let mut file_content: Vec<u8> = std::fs::read("inputs/listing_0037_single_register_mov")
-        .expect("Could not read input file");
+    let mut file_content: Vec<u8> =
+        std::fs::read("inputs/listing_0038_many_register_mov").expect("Could not read input file");
 
-    let second_byte: u8 = file_content
-        .pop()
-        .expect("File doesn't contain second byte");
-    let first_byte: u8 = file_content.pop().expect("File doesn't contain first byte");
+    let mut instructions_output: Vec<String> = vec![];
 
-    assert!(is_basic_mov(&first_byte));
-    assert!(is_register_mode(&second_byte));
+    while !file_content.is_empty() {
+        let second_byte: u8 = file_content
+            .pop()
+            .expect("File doesn't contain second byte");
+        let first_byte: u8 = file_content.pop().expect("File doesn't contain first byte");
 
-    let d: u8 = get_bit(&first_byte, 1);
-    let w: u8 = get_bit(&first_byte, 0);
+        assert!(is_basic_mov(first_byte));
+        assert!(is_register_mode(second_byte));
 
-    let reg: Register = Register::decode_reg(&second_byte, &w);
-    let rm: Register = Register::decode_rm(&second_byte, &w);
+        let d: u8 = get_bit(first_byte, 1);
+        let w: u8 = get_bit(first_byte, 0);
 
-    if d == 1 {
-        println!("mov {reg}, {rm}");
-    } else {
-        println!("mov {rm}, {reg}");
+        let reg: Register = Register::decode_reg(second_byte, w);
+        let rm: Register = Register::decode_rm(second_byte, w);
+
+        let result: String = if d == 1 {
+            format!("mov {reg}, {rm}")
+        } else {
+            format!("mov {rm}, {reg}")
+        };
+
+        instructions_output.push(result);
     }
+
+    print!("bits 16\n\n");
+
+    instructions_output
+        .iter()
+        .rev()
+        .for_each(|s| println!("{s}"));
 }
